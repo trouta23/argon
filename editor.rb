@@ -41,12 +41,17 @@ class Editor
     when "\cs" then save
     when "\r"  then enter
     when "\c_" then undo
+    when "\ca" then line_home
+    when "\ce" then line_end
+    when "\cu" then delete_before
+    when "\ck" then delete_after
     else
       insert_char(char) if char =~ /[[:print:]]/
     end
   end
 
   def quit
+    ANSI.move_cursor(0,0)
     ANSI.clear_screen
     exit
   end
@@ -108,14 +113,29 @@ class Editor
     @cursor = @cursor.right(@buffer)
   end
 
-  def break_line(row, col)
-    dup_lines = lines.map(&:dup)
-    dup_lines[row..row] = [dup_lines[row][0...col], dup_lines[row][col - 1]]
-    Buffer.new(dup_lines)
-  end
-
   def store_snapshot
     @snapshots << [@buffer, @cursor]
+  end
+
+  def line_home
+    @cursor = @cursor.line_home(@buffer)
+  end
+
+  def line_end
+    @cursor = @cursor.line_end(@buffer)
+  end
+
+  def delete_before
+    store_snapshot
+
+    @buffer = @buffer.delete_before(@cursor.row, @cursor.col)
+    line_home
+  end
+
+  def delete_after
+    store_snapshot
+
+    @buffer = @buffer.delete_after(@cursor.row, @cursor.col)
   end
 end
 
@@ -144,16 +164,38 @@ class Buffer
     lines[row].size
   end
 
+  def dup_lines
+    lines.map(&:dup)
+  end
+
   def delete_char(row, col)
-    dup_lines = lines.map(&:dup)
-    dup_lines[row].slice![col]
-    Buffer.new(dup_lines)
+    new_lines = dup_lines
+    new_lines[row].slice!(col)
+    Buffer.new(new_lines)
   end
 
   def insert_char(char, row, col)
-    dup_lines = lines.map(&:dup)
-    dup_lines[row].insert(col, char)
-    Buffer.new(dup_lines)
+    new_lines = dup_lines
+    new_lines[row..row] = [new_liens[row][0..col], new_lines[row][col..-1]]
+    Buffer.new(new_lines)
+  end
+
+  def break_line(row, col)
+    new_lines = dup_lines
+    new_lines[row..row] = [new_lines[row][0...col], new_lines[row][col - 1]]
+    Buffer.new(new_lines)
+  end
+
+  def delete_before(row, col)
+    new_lines = dup_lines
+    new_lines[row][0..col] = ''
+    Buffer.new(new_lines)
+  end
+
+  def delete_after(row, col)
+    new_lines = dup_lines
+    new_lines[row][col..-1] = ''
+    Buffer.new(new_lines)
   end
 end
 
@@ -189,6 +231,14 @@ class Cursor
 
   def enter(buffer)
     Cursor.new(row + 1, 0).clamp(buffer)
+  end
+
+  def line_home(buffer)
+    Cursor.new(row, 0).clamp(buffer)
+  end
+
+  def line_end(buffer)
+    Cursor.new(row, buffer.line_length(row)).clamp(buffer)
   end
 end
 
