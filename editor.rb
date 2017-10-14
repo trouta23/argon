@@ -11,6 +11,10 @@ class Editor
     @snapshots = []
   end
 
+  def self.open(filename)
+    new(filename).run
+  end
+
   def run
     IO.console.raw do
       loop do
@@ -25,8 +29,7 @@ class Editor
   attr_reader :buffer, :cursor
 
   def render
-    ANSI.move_cursor(0, 0)
-    ANSI.clear_screen
+    reset_screen
     buffer.print
     ANSI.move_cursor(cursor.row, cursor.col)
   end
@@ -55,8 +58,7 @@ class Editor
   end
 
   def quit
-    ANSI.move_cursor(0, 0)
-    ANSI.clear_screen
+    reset_screen
     exit
   end
 
@@ -128,7 +130,7 @@ class Editor
   end
 
   def line_home
-    @cursor = cursor.line_home(buffer)
+    @cursor = cursor.line_home
   end
 
   def line_end
@@ -146,6 +148,11 @@ class Editor
     store_snapshot
 
     @buffer = buffer.delete_after(cursor.row, cursor.col)
+  end
+
+  def reset_screen
+    ANSI.move_cursor(0, 0)
+    ANSI.clear_screen
   end
 end
 
@@ -241,12 +248,12 @@ class Cursor
     Cursor.new(row + 1, 0).clamp(buffer)
   end
 
-  def line_home(buffer)
-    Cursor.new(row, 0).clamp(buffer)
+  def line_home
+    Cursor.new(row, 0)
   end
 
   def line_end(buffer)
-    Cursor.new(row, buffer.line_length(row)).clamp(buffer)
+    Cursor.new(row, buffer.line_length(row))
   end
 end
 
@@ -260,4 +267,4 @@ module ANSI
   end
 end
 
-Editor.new(ARGV[0]).run
+Editor.open(ARGV[0])
