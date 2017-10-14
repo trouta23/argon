@@ -2,12 +2,12 @@ require 'io/console'
 
 class Editor
   def initialize(filename)
-    @filename = filename
-    data      = File.read(filename)
-    @line_sep = data["\r\n"] || "\n"
-    lines     = data.split(@line_sep)
-    @buffer   = Buffer.new(lines)
-    @cursor   = Cursor.new
+    @filename  = filename
+    data       = File.read(filename)
+    @line_sep  = data["\r\n"] || "\n"
+    lines      = data.split(@line_sep)
+    @buffer    = Buffer.new(lines)
+    @cursor    = Cursor.new
     @snapshots = []
   end
 
@@ -20,11 +20,15 @@ class Editor
     end
   end
 
+  private
+
+  attr_reader :buffer, :cursor
+
   def render
-    ANSI.move_cursor(0,0)
+    ANSI.move_cursor(0, 0)
     ANSI.clear_screen
-    @buffer.print
-    ANSI.move_cursor(@cursor.row, @cursor.col)
+    buffer.print
+    ANSI.move_cursor(cursor.row, cursor.col)
   end
 
   def handle_input
@@ -51,53 +55,59 @@ class Editor
   end
 
   def quit
-    ANSI.move_cursor(0,0)
+    ANSI.move_cursor(0, 0)
     ANSI.clear_screen
     exit
   end
 
   def up
-    @cursor = @cursor.up(@buffer)
+    @cursor = cursor.up(buffer)
   end
 
   def down
-    @cursor = @cursor.down(@buffer)
+    @cursor = cursor.down(buffer)
   end
 
   def left
-    @cursor = @cursor.left(@buffer)
+    @cursor = cursor.left(buffer)
   end
 
   def right
-    @cursor = @cursor.right(@buffer)
+    @cursor = cursor.right(buffer)
   end
 
   def backspace
-    return if @cursor.col == 0
+    return if cursor.col == 0
 
     store_snapshot
 
-    @buffer = @buffer.delete_char(@cursor.row, @cursor.col - 1)
-    @cursor = @cursor.left(@buffer)
+    @buffer = buffer.delete_char(cursor.row, cursor.col - 1)
+    @cursor = cursor.left(buffer)
   end
 
   def delete
     store_snapshot
 
-    @buffer = @buffer.delete_char(@cursor.row, @cursor.col)
+    @buffer = buffer.delete_char(cursor.row, cursor.col)
+  end
+
+  def data
+    data = buffer.lines.join(@line_sep).chomp(@line_sep)
+    data << @line_sep unless data.empty?
+    data
   end
 
   def save
-    open(filename, 'w') do |file|
-      file << @buffer.data(@line_sep)
+    open(@filename, 'w') do |file|
+      file << data
     end
   end
 
   def enter
     store_snapshot
 
-    @buffer = @buffer.break_line(@cursor.row, @cursor.col)
-    @cursor = @cursor.enter(@buffer)
+    @buffer = buffer.break_line(cursor.row, cursor.col)
+    @cursor = cursor.enter(buffer)
   end
 
   def undo
@@ -109,33 +119,33 @@ class Editor
   def insert_char(char)
     store_snapshot
 
-    @buffer = @buffer.insert_char(char, @cursor.row, @cursor.col)
-    @cursor = @cursor.right(@buffer)
+    @buffer = buffer.insert_char(char, cursor.row, cursor.col)
+    @cursor = cursor.right(buffer)
   end
 
   def store_snapshot
-    @snapshots << [@buffer, @cursor]
+    @snapshots << [buffer, cursor]
   end
 
   def line_home
-    @cursor = @cursor.line_home(@buffer)
+    @cursor = cursor.line_home(buffer)
   end
 
   def line_end
-    @cursor = @cursor.line_end(@buffer)
+    @cursor = cursor.line_end(buffer)
   end
 
   def delete_before
     store_snapshot
 
-    @buffer = @buffer.delete_before(@cursor.row, @cursor.col)
+    @buffer = buffer.delete_before(cursor.row, cursor.col)
     line_home
   end
 
   def delete_after
     store_snapshot
 
-    @buffer = @buffer.delete_after(@cursor.row, @cursor.col)
+    @buffer = buffer.delete_after(cursor.row, cursor.col)
   end
 end
 
@@ -147,25 +157,17 @@ class Buffer
   end
 
   def print
-    lines.each { |line| $stdout.print "#{line}\r\n" }
+    lines.each do |line|
+      $stdout.print "#{line}\r\n"
+    end
   end
 
-  def data(line_sep)
-    data = lines.join(line_sep).chomp(line_sep)
-    data << line_sep unless data.empty?
-    data
-  end
-
-  def line_count
+  def lines_count
     lines.size
   end
 
   def line_length(row)
     lines[row].size
-  end
-
-  def dup_lines
-    lines.map(&:dup)
   end
 
   def delete_char(row, col)
@@ -176,19 +178,19 @@ class Buffer
 
   def insert_char(char, row, col)
     new_lines = dup_lines
-    new_lines[row..row] = [new_liens[row][0..col], new_lines[row][col..-1]]
+    new_lines[row].insert(col, char)
     Buffer.new(new_lines)
   end
 
   def break_line(row, col)
     new_lines = dup_lines
-    new_lines[row..row] = [new_lines[row][0...col], new_lines[row][col - 1]]
+    new_lines[row..row] = [new_lines[row][0...col], new_lines[row][col..-1]]
     Buffer.new(new_lines)
   end
 
   def delete_before(row, col)
     new_lines = dup_lines
-    new_lines[row][0..col] = ''
+    new_lines[row][0...col] = ''
     Buffer.new(new_lines)
   end
 
@@ -196,6 +198,12 @@ class Buffer
     new_lines = dup_lines
     new_lines[row][col..-1] = ''
     Buffer.new(new_lines)
+  end
+
+  private
+
+  def dup_lines
+    lines.map(&:dup)
   end
 end
 
@@ -224,8 +232,8 @@ class Cursor
   end
 
   def clamp(buffer)
-    @row = row.clamp(0, buffer.line_count - 1)
-    @col = row.clamp(0, buffer.line_length(row))
+    @row = row.clamp(0, buffer.lines_count - 1)
+    @col = col.clamp(0, buffer.line_length(row))
     self
   end
 
