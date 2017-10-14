@@ -5,7 +5,7 @@ class Editor
     @filename  = filename
     data       = File.read(filename)
     @line_sep  = data["\r\n"] || "\n"
-    lines      = data.split(@line_sep)
+    lines      = data.split(line_sep)
     @buffer    = Buffer.new(lines)
     @cursor    = Cursor.new
     @snapshots = []
@@ -26,7 +26,7 @@ class Editor
 
   private
 
-  attr_reader :buffer, :cursor
+  attr_reader :buffer, :cursor, :line_sep, :snapshots
 
   def render
     reset_screen
@@ -94,8 +94,8 @@ class Editor
   end
 
   def data
-    data = buffer.lines.join(@line_sep).chomp(@line_sep)
-    data << @line_sep unless data.empty?
+    data = buffer.lines.join(line_sep).chomp(line_sep)
+    data << line_sep unless data.empty?
     data
   end
 
@@ -113,9 +113,9 @@ class Editor
   end
 
   def undo
-    return if @snapshots.empty?
+    return if snapshots.empty?
 
-    @buffer, @cursor = @snapshots.pop
+    @buffer, @cursor = snapshots.pop
   end
 
   def insert_char(char)
