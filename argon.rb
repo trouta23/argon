@@ -11,7 +11,7 @@ module Argon
       lines      = data.split(line_sep)
       @buffer    = Buffer.new(lines)
       @cursor    = Cursor.new
-      @snapshots = []
+      @history   = History.new
     end
 
     def self.open(filename)
@@ -31,7 +31,8 @@ module Argon
 
     private
 
-    attr_reader :buffer, :blank_buffer, :cursor, :filename, :snapshots, :line_sep
+    attr_reader :buffer, :blank_buffer, :cursor, :history, :filename, :snapshots,
+                :line_sep
 
     def render
       clear_screen
@@ -46,7 +47,6 @@ module Argon
       when "\cs" then save
       when "\cq" then quit
       when "\r"  then enter
-      when "\c_" then undo
       when "\cp" then up
       when "\cn" then down
       when "\cb" then left
@@ -57,6 +57,8 @@ module Argon
       when "\cd" then delete
       when "\cu" then delete_before
       when "\ck" then delete_after
+      when "\c_" then history_undo
+      when "\cr" then history_redo
       else
         insert_char(char) if char =~ /[[:print:]]/
       end
@@ -127,10 +129,17 @@ module Argon
       @cursor = cursor.enter(buffer)
     end
 
-    def undo
-      return if snapshots.empty?
+    def history_undo
+      return unless history.can_undo?
 
-      @buffer, @cursor = snapshots.pop
+      store_snapshot(false) unless history.can_redo?
+      @buffer, @cursor = history.undo
+    end
+
+    def history_redo
+      return unless history.can_redo?
+
+      @buffer, @cursor = history.redo
     end
 
     def insert_char(char)
@@ -140,8 +149,8 @@ module Argon
       @cursor = cursor.right(buffer)
     end
 
-    def store_snapshot
-      snapshots << [buffer, cursor]
+    def store_snapshot[advance = true]
+      history.save([buffer, cursor], advance)
     end
 
     def line_home
@@ -310,6 +319,48 @@ module Argon
 
     def beginning_of_file?
       row == 0 && col == 0
+    end
+  end
+
+  class History
+    def initialize
+      @snapshots = []
+      @current   = -1
+    end
+
+    def save(data, advance = true)
+      snapshots.slice!(current + 1..-1)
+
+      snapshots << data
+      @current += 1 if advance
+    end
+
+    def can_undo?
+      !undo_snapshot.nil?
+    end
+
+    def undo
+      undo_snapshot.tap { @current -= 1 }
+    end
+
+    def can_redo?
+      !redo_snapshot.nil?
+    end
+
+    def redo
+      redo_snapshot.tap { @current += 1 }
+    end
+
+    private
+
+    attr_reader :current, :snapshots
+
+    def undo_snapshot
+      snapshots[current] if current >= 0
+    end
+
+    def redo_snapshot
+      snapshots[current + 2]
     end
   end
 
