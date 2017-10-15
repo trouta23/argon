@@ -2,16 +2,29 @@
 
 require 'io/console'
 
+unless Comparable.instance_methods.include?(:clamp)
+  class Fixnum
+    def clamp(min, max)
+      if min > max
+        raise ArgumentError, 'min argument must be smaller than max argument'
+      end
+
+      return min if self <= min
+      return max if self >= max
+      self
+    end
+  end
+end
+
 module Argon
   class Editor
     def initialize(filename)
-      @filename  = filename
-      data       = read_file_data
-      @line_sep  = data["\r\n"] || "\n"
-      lines      = data.split(line_sep)
-      @buffer    = Buffer.new(lines)
-      @cursor    = Cursor.new
-      @history   = History.new
+      @filename = filename
+      data      = read_file_data
+      @line_sep = data["\r\n"] || "\n"
+      @buffer   = Buffer.new(lines_from_data(data))
+      @cursor   = Cursor.new
+      @history  = History.new
     end
 
     def self.open(filename)
@@ -41,20 +54,20 @@ module Argon
     end
 
     def handle_input
-      char = $stdin.getc
+      char = read_char
 
       case char
       when "\cs" then save
       when "\cq" then quit
       when "\r"  then enter
-      when "\cp" then up
-      when "\cn" then down
-      when "\cb" then left
-      when "\cf" then right
-      when "\ca" then line_home
-      when "\ce" then line_end
-      when "\ch" then backspace
-      when "\cd" then delete
+      when "\cp", "\e[A" then up
+      when "\cn", "\e[B" then down
+      when "\cb", "\e[D" then left
+      when "\cf", "\e[C" then right
+      when "\ca", "\e[7~" then line_home
+      when "\ce", "\e[8~" then line_end
+      when "\ch", "\177" then backspace
+      when "\cd", "\e[3~", "\004" then delete
       when "\cu" then delete_before
       when "\ck" then delete_after
       when "\c_" then history_undo
@@ -62,6 +75,25 @@ module Argon
       else
         insert_char(char) if char =~ /[[:print:]]/
       end
+    end
+
+    def read_char
+      char = $stdin.getc
+
+      return char if char != "\e"
+
+      maxlen = 3
+
+      begin
+        char << $stdin.read_nonblock(maxlen)
+      rescue IO::WaitReadable
+        return char if maxlen == 2
+
+        maxlen -= 1
+        retry
+      end
+
+      char
     end
 
     def quit
@@ -198,6 +230,14 @@ module Argon
         ''
       end
     end
+
+    def lines_from_data(data)
+      if data.empty?
+        ['']
+      else
+        data.split(line_sep)
+      end
+    end
   end
 
   class Buffer
@@ -224,10 +264,7 @@ module Argon
     end
 
     def insert_char(char, row, col)
-      with_copy do |b|
-        b.lines[row] ||= ''
-        b.lines[row].insert(col, char)
-      end
+      with_copy {|b| b.lines[row].insert(col, char) }
     end
 
     def break_line(row, col)
@@ -375,8 +412,10 @@ module Argon
   end
 end
 
-begin
-  Argon::Editor.open(ARGV[0])
-rescue IndexError
-  puts "Usage: #$0 file"
+if __FILE__ == $0
+  begin
+    Argon::Editor.open(ARGV.fetch(0))
+  rescue IndexError
+    puts "Usage: #$0 file"
+  end
 end
