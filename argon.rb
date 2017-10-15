@@ -44,8 +44,8 @@ module Argon
       when "\cq" then quit
       when "\cp" then up
       when "\cn" then down
-      when "\cf" then right
       when "\cb" then left
+      when "\cf" then right
       when "\ch" then backspace
       when "\cd" then delete
       when "\cs" then save
@@ -203,46 +203,38 @@ module Argon
     end
 
     def delete_char(row, col)
-      new_lines = dup_lines
-      new_lines[row].slice!(col)
-      Buffer.new(new_lines)
+      with_copy { |b| b.lines[row].slice!(col) }
     end
 
     def insert_char(char, row, col)
-      new_lines = dup_lines
-      new_lines[row] ||= ''
-      new_lines[row].insert(col, char)
-      Buffer.new(new_lines)
+      with_copy do |b|
+        b.lines[row] ||= ''
+        b.lines[row].insert(col, char)
+      end
     end
 
     def break_line(row, col)
-      new_lines = dup_lines
-      new_lines[row..row] = [new_lines[row][0...col], new_lines[row][col..-1]]
-      Buffer.new(new_lines)
+      with_copy do |b|
+        b.lines[row..row] = [b.lines[row][0...col], b.lines[row][col..-1]]
+      end
     end
 
     def delete_before(row, col)
-      new_lines = dup_lines
-      new_lines[row][0...col] = ''
-      Buffer.new(new_lines)
+      with_copy { |b| b.lines[row][0...col] = '' }
     end
 
     def delete_after(row, col)
-      new_lines = dup_lines
-      new_lines[row][col..-1] = ''
-      Buffer.new(new_lines)
+      with_copy { |b| b.lines[row][col..-1] = '' }
     end
 
     def join_lines(row)
-      new_lines = dup_lines
-      new_lines[row..row + 1] = new_lines[row..row + 1].join
-      Buffer.new(new_lines)
+      with_copy { |b| b.lines[row..row + 1] = b.lines[row..row + 1].join }
     end
 
     private
 
-    def dup_lines
-      lines.map(&:dup)
+    def with_copy
+      Buffer.new(lines.map(&:dup)).tap { |b| yield b }
     end
   end
 
@@ -308,7 +300,7 @@ module Argon
       final_line?(buffer) && end_of_line?(buffer)
     end
 
-    def beginning_of_file?(buffer)
+    def beginning_of_file?
       row == 0 && col == 0
     end
   end
