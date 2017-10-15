@@ -181,7 +181,7 @@ module Argon
       @cursor = cursor.right(buffer)
     end
 
-    def store_snapshot[advance = true]
+    def store_snapshot(advance = true)
       history.save([buffer, cursor], advance)
     end
 
