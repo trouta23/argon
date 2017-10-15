@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 require 'io/console'
 
 module Argon
@@ -29,7 +31,7 @@ module Argon
 
     private
 
-    attr_reader :buffer, :blank_buffer, :cursor, :snapshots, :line_sep
+    attr_reader :buffer, :blank_buffer, :cursor, :filename, :snapshots, :line_sep
 
     def render
       clear_screen
@@ -41,18 +43,18 @@ module Argon
       char = $stdin.getc
 
       case char
+      when "\cs" then save
       when "\cq" then quit
+      when "\r"  then enter
+      when "\c_" then undo
       when "\cp" then up
       when "\cn" then down
       when "\cb" then left
       when "\cf" then right
-      when "\ch" then backspace
-      when "\cd" then delete
-      when "\cs" then save
-      when "\r"  then enter
-      when "\c_" then undo
       when "\ca" then line_home
       when "\ce" then line_end
+      when "\ch" then backspace
+      when "\cd" then delete
       when "\cu" then delete_before
       when "\ck" then delete_after
       else
@@ -115,9 +117,7 @@ module Argon
     end
 
     def save
-      open(@filename, 'w') do |f|
-        f << data
-      end
+      open(filename, 'w') { |f| f << data }
     end
 
     def enter
